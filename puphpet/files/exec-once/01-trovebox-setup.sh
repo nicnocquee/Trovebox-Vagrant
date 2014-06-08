@@ -1,5 +1,4 @@
 #!/bin/sh
-#!/bin/sh
 echo 'Cloning Trovebox'
 rm -rf /var/www/trovebox/
 git clone https://github.com/photo/frontend /var/www/trovebox
