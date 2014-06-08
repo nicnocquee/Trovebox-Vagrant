@@ -22,7 +22,7 @@ Installation (Mac)
 1. Clone this repo.
 2. Open terminal and run `vagrant up`
 3. You might be asked to enter administrator password since NFS sharing is enabled.
-4. This might take a while, why don't you watch some videos on Youtube.
+4. This might take a while, why don't you watch some videos on Youtube, or follow me on [Twitter](http://twitter.com/nicnocquee).
 4. Once `vagrant up` is successfully executed, edit your machine's host file. For Mac and Linux, open `/etc/hosts` (require administator privilege) and add
 
 		192.168.56.101  trovebox.dev
