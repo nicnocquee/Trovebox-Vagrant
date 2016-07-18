@@ -1,158 +1,102 @@
-require 'yaml'
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
 
-dir = File.dirname(File.expand_path(__FILE__))
-
-configValues = YAML.load_file("#{dir}/puphpet/config.yaml")
-data = configValues['vagrantfile-local']
-
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
 Vagrant.configure("2") do |config|
-  config.vm.box = "#{data['vm']['box']}"
-  config.vm.box_url = "#{data['vm']['box_url']}"
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
 
-  if data['vm']['hostname'].to_s != ''
-    config.vm.hostname = "#{data['vm']['hostname']}"
-  end
+  # Every Vagrant development environment requires a box. You can search for
+  # boxes at https://atlas.hashicorp.com/search.
+  config.vm.box = "ubuntu/trusty64"
 
-  if data['vm']['network']['private_network'].to_s != ''
-    config.vm.network "private_network", ip: "#{data['vm']['network']['private_network']}"
-  end
+  config.vm.network "forwarded_port", guest: 80, host: 8080
 
-  data['vm']['network']['forwarded_port'].each do |i, port|
-    if port['guest'] != '' && port['host'] != ''
-      config.vm.network :forwarded_port, guest: port['guest'].to_i, host: port['host'].to_i
-    end
-  end
+	#config.vm.provision "shell", path: "provision.sh"
 
-  data['vm']['synced_folder'].each do |i, folder|
-    if folder['source'] != '' && folder['target'] != ''
-      nfs = (folder['nfs'] == "true") ? "nfs" : nil
-      if nfs == "nfs"
-        config.vm.synced_folder "#{folder['source']}", "#{folder['target']}", id: "#{i}", type: nfs
-      else
-        config.vm.synced_folder "#{folder['source']}", "#{folder['target']}", id: "#{i}", type: nfs,
-          group: 'www-data', owner: 'www-data', mount_options: ["dmode=775", "fmode=764"]
-      end
-    end
-  end
+  # Disable automatic box update checking. If you disable this, then
+  # boxes will only be checked for updates when the user runs
+  # `vagrant box outdated`. This is not recommended.
+  # config.vm.box_check_update = false
 
-  config.vm.usable_port_range = (10200..10500)
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
 
-  if data['vm']['chosen_provider'].empty? || data['vm']['chosen_provider'] == "virtualbox"
-    ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  config.vm.network "private_network", ip: "192.168.56.101"
 
-    config.vm.provider :virtualbox do |virtualbox|
-      data['vm']['provider']['virtualbox']['modifyvm'].each do |key, value|
-        if key == "memory"
-          next
-        end
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network "public_network"
 
-        if key == "natdnshostresolver1"
-          value = value ? "on" : "off"
-        end
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  # config.vm.synced_folder "../data", "/vagrant_data"
 
-        virtualbox.customize ["modifyvm", :id, "--#{key}", "#{value}"]
-      end
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  # config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+  #   vb.gui = true
+  #
+  #   # Customize the amount of memory on the VM:
+  #   vb.memory = "1024"
+  # end
+  #
+  # View the documentation for the provider you are using for more
+  # information on available options.
 
-      virtualbox.customize ["modifyvm", :id, "--memory", "#{data['vm']['memory']}"]
-    end
-  end
+  # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
+  # such as FTP and Heroku are also available. See the documentation at
+  # https://docs.vagrantup.com/v2/push/atlas.html for more information.
+  # config.push.define "atlas" do |push|
+  #   push.app = "YOUR_ATLAS_USERNAME/YOUR_APPLICATION_NAME"
+  # end
 
-  if data['vm']['chosen_provider'] == "vmware_fusion" || data['vm']['chosen_provider'] == "vmware_workstation"
-    ENV['VAGRANT_DEFAULT_PROVIDER'] = (data['vm']['chosen_provider'] == "vmware_fusion") ? "vmware_fusion" : "vmware_workstation"
-
-    config.vm.provider "vmware_fusion" do |v|
-      data['vm']['provider']['vmware'].each do |key, value|
-        if key == "memsize"
-          next
-        end
-
-        v.vmx["#{key}"] = "#{value}"
-      end
-
-      v.vmx["memsize"] = "#{data['vm']['memory']}"
-    end
-  end
-
-  if data['vm']['chosen_provider'] == "parallels"
-    ENV['VAGRANT_DEFAULT_PROVIDER'] = "parallels"
-
-    config.vm.provider "parallels" do |v|
-      data['vm']['provider']['parallels'].each do |key, value|
-        if key == "memsize"
-          next
-        end
-
-        v.customize ["set", :id, "--#{key}", "#{value}"]
-      end
-
-      v.memory = "#{data['vm']['memory']}"
-    end
-  end
-
-  ssh_username = !data['ssh']['username'].nil? ? data['ssh']['username'] : "vagrant"
-
-  config.vm.provision "shell" do |s|
-    s.path = "puphpet/shell/initial-setup.sh"
-    s.args = "/vagrant/puphpet"
-  end
-  config.vm.provision "shell" do |kg|
-    kg.path = "puphpet/shell/ssh-keygen.sh"
-    kg.args = "#{ssh_username}"
-  end
-  config.vm.provision :shell, :path => "puphpet/shell/update-puppet.sh"
-
-  config.vm.provision :puppet do |puppet|
-    puppet.facter = {
-      "ssh_username"     => "#{ssh_username}",
-      "provisioner_type" => ENV['VAGRANT_DEFAULT_PROVIDER'],
-      "vm_target_key"    => 'vagrantfile-local',
-    }
-    puppet.manifests_path = "#{data['vm']['provision']['puppet']['manifests_path']}"
-    puppet.manifest_file = "#{data['vm']['provision']['puppet']['manifest_file']}"
-    puppet.module_path = "#{data['vm']['provision']['puppet']['module_path']}"
-
-    if !data['vm']['provision']['puppet']['options'].empty?
-      puppet.options = data['vm']['provision']['puppet']['options']
-    end
-  end
-
-  config.vm.provision :shell, :path => "puphpet/shell/execute-files.sh"
-  config.vm.provision :shell, :path => "puphpet/shell/important-notices.sh"
-
-  if File.file?("#{dir}/puphpet/files/dot/ssh/id_rsa")
-    config.ssh.private_key_path = [
-      "#{dir}/puphpet/files/dot/ssh/id_rsa",
-      "#{dir}/puphpet/files/dot/ssh/insecure_private_key"
-    ]
-  end
-
-  if !data['ssh']['host'].nil?
-    config.ssh.host = "#{data['ssh']['host']}"
-  end
-  if !data['ssh']['port'].nil?
-    config.ssh.port = "#{data['ssh']['port']}"
-  end
-  if !data['ssh']['username'].nil?
-    config.ssh.username = "#{data['ssh']['username']}"
-  end
-  if !data['ssh']['guest_port'].nil?
-    config.ssh.guest_port = data['ssh']['guest_port']
-  end
-  if !data['ssh']['shell'].nil?
-    config.ssh.shell = "#{data['ssh']['shell']}"
-  end
-  if !data['ssh']['keep_alive'].nil?
-    config.ssh.keep_alive = data['ssh']['keep_alive']
-  end
-  if !data['ssh']['forward_agent'].nil?
-    config.ssh.forward_agent = data['ssh']['forward_agent']
-  end
-  if !data['ssh']['forward_x11'].nil?
-    config.ssh.forward_x11 = data['ssh']['forward_x11']
-  end
-  if !data['vagrant']['host'].nil?
-    config.vagrant.host = data['vagrant']['host'].gsub(":", "").intern
-  end
-
+  # Enable provisioning with a shell script. Additional provisioners such as
+  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
+  # documentation for more information about their specific syntax and use.
+  config.vm.provision "shell", inline: <<-SHELL
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 curl vim git-core build-essential exiftran mysql-server-5.5 mysql-client-core-5.5 php5 libapache2-mod-php5 php5-curl curl php5-gd php5-mcrypt php5-mysql php-pear php-apc libpcre3-dev
+    a2enmod rewrite
+    DEBIAN_FRONTEND=noninteractive apt-get install -y php5-dev php5-imagick
+    a2enmod deflate
+    a2enmod expires
+    a2enmod headers
+    pecl install oauth-1.2.3
+    mkdir -p /etc/php5/apache2/conf.d/
+    echo "extension=oauth.so" >> /etc/php5/apache2/conf.d/oauth.ini
+    wget https://github.com/photo/frontend/tarball/master -O openphoto.tar.gz
+    tar -zxvf openphoto.tar.gz > /dev/null 2>&1
+    mv photo-frontend-* /var/www/openphoto
+    sudo rm openphoto.tar.gz
+    mkdir /var/www/openphoto/src/userdata
+    chown www-data:www-data /var/www/openphoto/src/userdata
+    mkdir /var/www/openphoto/src/html/assets/cache
+    chown www-data:www-data /var/www/openphoto/src/html/assets/cache
+    mkdir /var/www/openphoto/src/html/photos
+    chown www-data:www-data /var/www/openphoto/src/html/photos
+    cp /var/www/openphoto/src/configs/openphoto-vhost.conf /etc/apache2/sites-available/openphoto.conf
+    sed -e "s|\/path\/to\/openphoto\/html\/directory|\/var\/www\/openphoto\/src\/html|g" -e "s/yourdomainname.com/trovebox.dev/g" /var/www/openphoto/src/configs/openphoto-vhost.conf > /etc/apache2/sites-available/openphoto.conf
+    a2dissite 000-default
+    a2ensite openphoto
+    sed -e "s/file_uploads.*/file_uploads = On/g" -e "s/upload_max_filesize.*/upload_max_filesize = 16M/g" -e "s/post_max_size.*/post_max_size = 16M/g" /etc/php5/apache2/php.ini > /etc/php5/apache2/php.ini.tmp
+    mv /etc/php5/apache2/php.ini.tmp /etc/php5/apache2/php.ini
+    sudo php5enmod mcrypt
+    /etc/init.d/apache2 restart
+    mysql -uroot -e "CREATE DATABASE trovebox"
+  SHELL
 end
-
